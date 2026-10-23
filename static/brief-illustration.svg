@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" role="img" aria-labelledby="title desc">
+  <title id="title">A clearer view of the news</title>
+  <desc id="desc">A newspaper and notebook with a small chart, framed by a rising sun and abstract leaves.</desc>
+  <rect width="500" height="300" fill="none"/>
+  <circle cx="348" cy="126" r="106" fill="#e9dfcc"/>
+  <circle cx="348" cy="126" r="77" fill="none" stroke="#d5c7ae" stroke-width="1" stroke-dasharray="2 7"/>
+  <path d="M277 247c40-31 93-40 149-19" fill="none" stroke="#9aab91" stroke-width="2" stroke-linecap="round"/>
+  <path d="M291 258c40-31 88-38 131-20" fill="none" stroke="#b9c2aa" stroke-width="2" stroke-linecap="round"/>
+  <g fill="#72836a"><path d="M410 213c-2-21 6-38 25-48-1 20-8 35-25 48Z"/><path d="M417 222c8-19 22-29 42-29-9 17-22 27-42 29Z"/><path d="M409 217c-15-11-22-26-19-46 15 13 21 28 19 46Z"/></g>
+  <g transform="rotate(8 265 162)">
+    <rect x="225" y="59" width="176" height="205" rx="3" fill="#d9d4c7"/>
+    <rect x="215" y="48" width="176" height="205" rx="3" fill="#fffdf7" stroke="#ddd8cd"/>
+    <rect x="215" y="48" width="176" height="12" fill="#294b3e"/>
+    <text x="233" y="83" fill="#263d33" font-family="Georgia,serif" font-size="17" font-weight="700" letter-spacing="1">THE DAILY</text>
+    <text x="233" y="103" fill="#263d33" font-family="Georgia,serif" font-size="17" font-weight="700" letter-spacing="1">BRIEF</text>
+    <path d="M233 112h139" stroke="#bd784d" stroke-width="2"/>
+    <text x="233" y="127" fill="#858477" font-family="Arial,sans-serif" font-size="6" letter-spacing="1.2">NEWS · CONTEXT · UPSC</text>
+    <rect x="233" y="140" width="64" height="55" fill="#e9e8dd"/>
+    <path d="M240 184h48M240 176h40M240 168h45M240 160h31M240 152h43" stroke="#bac0b1" stroke-width="2" stroke-linecap="round"/>
+    <path d="M309 142h62M309 149h56M309 156h58" stroke="#d6d3ca" stroke-width="3" stroke-linecap="round"/>
+    <path d="M309 173h62M309 180h49M309 187h58" stroke="#d6d3ca" stroke-width="3" stroke-linecap="round"/>
+    <path d="M233 207h137M233 214h130M233 221h112" stroke="#d6d3ca" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="358" cy="227" r="12" fill="#f1e9db" stroke="#bd784d"/>
+    <text x="354" y="231" fill="#9d6948" font-family="Georgia,serif" font-size="12" font-style="italic">D</text>
+  </g>
+  <g transform="rotate(-13 170 203)">
+    <rect x="102" y="127" width="124" height="130" rx="5" fill="#c6cebc"/>
+    <rect x="110" y="136" width="116" height="121" rx="3" fill="#435e4c"/>
+    <path d="M124 154h76" stroke="#a9b9a2" stroke-width="2"/>
+    <text x="124" y="173" fill="#f1eee4" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing="1.4">TODAY'S NOTES</text>
+    <path d="M126 223V200h12v23M146 223v-35h12v35M166 223v-48h12v48M186 223v-61h12v61" fill="#c4aa7e"/>
+    <path d="m128 192 23-15 22-9 22-13" fill="none" stroke="#f0d9af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="128" cy="192" r="3" fill="#f0d9af"/><circle cx="151" cy="177" r="3" fill="#f0d9af"/><circle cx="173" cy="168" r="3" fill="#f0d9af"/><circle cx="195" cy="155" r="3" fill="#f0d9af"/>
+  </g>
+  <g fill="#bd784d"><circle cx="130" cy="70" r="4"/><circle cx="426" cy="76" r="3"/><circle cx="91" cy="233" r="3"/></g>
+  <path d="M88 91c10-18 23-25 39-23-5 16-16 25-39 23Z" fill="#9aa78f"/>
+  <path d="M105 94c-2-14 4-25 17-33" fill="none" stroke="#71846f" stroke-width="1.5"/>
+  <rect x="86" y="244" width="46" height="23" rx="11.5" fill="#f8f5ec" stroke="#ddd8cd"/>
+  <text x="97" y="259" fill="#66765e" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing="1">GS · 01</text>
+</svg>
