@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f6f3ec">
-  <title>{% block title %}The UPSC Newsroom. — UPSC Current Affairs{% endblock %}</title>
+  <title>{% block title %}The UPSC Newsroom — UPSC Current Affairs{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="topline"><span>YOUR CURRENT AFFAIRS COMPANION</span><span id="today"></span></div>
   <header class="site-header">
-    <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark">D</span><span>The UPSC Newsroom.<small>NEWS · CONTEXT · UPSC</small></span></a>
-    <nav><a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' and not request.args.get('saved') %}active{% endif %}">Today’s Brief</a><a href="{{ url_for('index', saved=1) }}">Reading List</a><a href="{{ url_for('about') }}">About</a>{% if session.get('user_id') %}<span class="user-greeting">Hi, {{ session.get('user_name') }}</span><form class="nav-auth-form" method="post" action="{{ url_for('logout') }}"><button class="nav-link-button" type="submit">Log out</button></form>{% else %}<a href="{{ url_for('login') }}" class="auth-nav">Log in</a><a href="{{ url_for('signup') }}" class="auth-nav signup-nav">Sign in</a>{% endif %}</nav>
-    <form method="post" action="{{ url_for('refresh') }}"><button class="refresh-button" type="submit"><span>↻</span> Refresh news</button></form>
+    <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark">U</span><span>The UPSC Newsroom<small>NEWS · CONTEXT · UPSC</small></span></a>
+    <nav><a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' and not request.args.get('saved') %}active{% endif %}">Today’s Brief</a><a href="{{ url_for('index', saved=1) }}">Reading List</a><a href="{{ url_for('about') }}">About</a>{% if session.get('user_id') %}<span class="user-greeting">Hi, {{ session.get('user_name') }}</span><form class="nav-auth-form" method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="nav-link-button" type="submit">Log out</button></form>{% else %}<a href="{{ url_for('login') }}" class="auth-nav">Log in</a><a href="{{ url_for('signup') }}" class="auth-nav signup-nav">Sign in</a>{% endif %}</nav>
+    <form method="post" action="{{ url_for('refresh') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="refresh-button" type="submit"><span>↻</span> Refresh news</button></form>
   </header>
   <main>{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-wrap">{% for kind, message in messages %}<div class="flash {{ kind }}">{{ message }}<button type="button" class="flash-close" aria-label="Dismiss">×</button></div>{% endfor %}</div>{% endif %}{% endwith %}{% block content %}{% endblock %}</main>
   <footer><a class="footer-brand" href="{{ url_for('index') }}">THE UPSC NEWSROOM.</a><span>Made for curious minds preparing for the civil services.</span><span>Independent study companion · Not a news publisher</span></footer>

@@ -1,18 +1,78 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="hero">
-  <div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span> YOUR DAILY CURRENT AFFAIRS</div><h1>Make sense of<br><em>what matters.</em></h1><p>News worth knowing, with the context you need for your UPSC journey.</p>
-    <form class="search-form" action="{{ url_for('index') }}" method="get"><span class="search-icon">⌕</span><input name="q" value="{{ search }}" placeholder="Search today's stories…" aria-label="Search stories"><button type="submit">Search</button></form>
+  <div class="hero-copy">
+    <div class="eyebrow"><span class="live-dot"></span> YOUR DAILY CURRENT AFFAIRS</div>
+    <h1>Make sense of<br><em>what matters.</em></h1>
+    <p>News worth knowing, mapped to the UPSC syllabus you are studying.</p>
+    <form class="search-form" action="{{ url_for('index') }}" method="get">
+      <span class="search-icon">⌕</span>
+      <input name="q" value="{{ search }}" placeholder="Search today's stories…" aria-label="Search stories">
+      {% if saved_only %}<input type="hidden" name="saved" value="1">{% endif %}
+      {% if subject %}<input type="hidden" name="subject" value="{{ subject }}">{% endif %}
+      {% if paper %}<input type="hidden" name="paper" value="{{ paper }}">{% endif %}
+      {% if topic %}<input type="hidden" name="topic" value="{{ topic }}">{% endif %}
+      <button type="submit">Search</button>
+    </form>
   </div>
   <div class="hero-art"><img src="{{ url_for('static', filename='brief-illustration.svg') }}" alt="An illustrated newspaper, notebook and rising chart representing a daily current-affairs briefing"><span class="art-caption">A clearer view<br>of the bigger picture.</span></div>
 </section>
-<section class="stats-row"><div><strong>{{ counts.total }}</strong><span>STORIES IN YOUR BRIEF</span></div><i></i><div><strong>{{ counts.topics }}</strong><span>TOPIC AREAS</span></div><i></i><div><strong>~5 MIN</strong><span>TO GET UP TO SPEED</span></div><span class="stats-note">Curated for your preparation</span></section>
+
+<section class="stats-row"><div><strong>{{ counts.total }}</strong><span>STORIES IN YOUR BRIEF</span></div><i></i><div><strong>{{ counts.topics }}</strong><span>TOPIC AREAS</span></div><i></i><div><strong>~5 MIN</strong><span>TO GET UP TO SPEED</span></div><span class="stats-note">Mapped to UPSC micro-topics</span></section>
+
 <section class="content-layout">
   <div class="feed-column">
-    <div class="section-heading"><div><span class="eyebrow">THE NEWSROOM</span><h2>{% if saved_only %}Your reading list{% elif category %}{{ category }} stories{% elif search %}Search results{% else %}The latest brief{% endif %}</h2></div><span class="story-count">{{ articles|length }} STORIES</span></div>
-    <div class="filter-row"><a class="filter-chip {% if not category and not saved_only %}selected{% endif %}" href="{{ url_for('index', q=search) }}">All stories</a>{% for item in categories %}<a class="filter-chip {% if category == item %}selected{% endif %}" href="{{ url_for('index', category=item, q=search) }}">{{ item }}</a>{% endfor %}</div>
-    {% if articles %}<div class="story-list">{% for article in articles %}<article class="story-card"><div class="story-meta"><span class="category-pill">{{ article.category }}</span><span>{{ article.source }}</span><span class="meta-dot">·</span><span>{{ article.published[:10] if article.published and article.published|length > 10 else article.published }}</span></div><a class="story-title" href="{{ url_for('article_detail', article_id=article.id) }}">{{ article.title }}</a><p class="story-summary">{{ article.summary }}</p><div class="story-bottom"><a href="{{ url_for('article_detail', article_id=article.id) }}" class="read-link">Read the brief <span>→</span></a><form method="post" action="{{ url_for('save_article', article_id=article.id) }}"><button class="save-button {% if article.is_saved %}is-saved{% endif %}" title="{% if article.is_saved %}Remove from reading list{% else %}Save for later{% endif %}" aria-label="Save story">{% if article.is_saved %}♥{% else %}♡{% endif %}</button></form></div></article>{% endfor %}</div>{% else %}<div class="empty-state"><div>✳</div><h3>No stories found</h3><p>Try another search or choose a different topic.</p><a href="{{ url_for('index') }}" class="read-link">Back to all stories →</a></div>{% endif %}
+    <div class="section-heading">
+      <div><span class="eyebrow">THE NEWSROOM · SYLLABUS VIEW</span><h2>{% if saved_only %}Your reading list{% elif topic %}{{ topic }}{% elif subject %}{{ subject }}{% elif paper %}{{ paper }}{% elif search %}Search results{% else %}The latest brief{% endif %}</h2></div>
+      <span class="story-count">{{ articles|length }} STORIES</span>
+    </div>
+    <div class="filter-row syllabus-subjects">
+      <a class="filter-chip {% if not subject %}selected{% endif %}" href="{{ url_for('index', q=search, paper=paper, topic=topic, saved=1 if saved_only else None) }}">All subjects</a>
+      {% for item in syllabus_subjects %}<a class="filter-chip {% if subject == item %}selected{% endif %}" href="{{ url_for('index', subject=item, q=search, paper=paper, saved=1 if saved_only else None) }}">{{ item }}</a>{% endfor %}
+    </div>
+    <form class="syllabus-filter" action="{{ url_for('index') }}" method="get">
+      <input type="hidden" name="q" value="{{ search }}">
+      {% if saved_only %}<input type="hidden" name="saved" value="1">{% endif %}
+      <label>Exam paper
+        <select name="paper">
+          <option value="">All papers</option>
+          {% for item in papers %}<option value="{{ item }}" {% if paper == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Micro-topic
+        <select name="topic">
+          <option value="">All micro-topics</option>
+          {% for item, section in syllabus.items() %}
+            <optgroup label="{{ item }}">
+              {% for topic_name in section.topics %}<option value="{{ topic_name }}" {% if topic == topic_name %}selected{% endif %}>{{ topic_name }}</option>{% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </label>
+      {% if subject %}<input type="hidden" name="subject" value="{{ subject }}">{% endif %}
+      <button type="submit">Apply filters</button>
+      {% if subject or paper or topic or saved_only %}<a class="clear-filter" href="{{ url_for('index', q=search, saved=1 if saved_only else None) }}">Clear filters</a>{% endif %}
+    </form>
+
+    {% if articles %}
+      <div class="story-list">
+        {% for article in articles %}
+          <article class="story-card">
+            <div class="story-meta"><span class="category-pill">{{ article.category }}</span><span>{{ article.source }}</span><span class="meta-dot">·</span><span>{{ article.published[:10] if article.published and article.published|length > 10 else article.published }}</span></div>
+            <a class="story-title" href="{{ url_for('article_detail', article_id=article.id) }}">{{ article.title }}</a>
+            <p class="story-summary">{{ article.summary }}</p>
+            {% if article.syllabus_matches %}<div class="syllabus-tags" aria-label="Matched syllabus topics">{% for match in article.syllabus_matches[:3] %}<span class="syllabus-tag">{{ match.paper }} · {{ match.topic }}</span>{% endfor %}</div>{% else %}<div class="syllabus-tags"><span class="syllabus-tag unmatched">No specific micro-topic matched</span></div>{% endif %}
+            <div class="story-bottom"><a href="{{ url_for('article_detail', article_id=article.id) }}" class="read-link">Read the brief <span>→</span></a><form method="post" action="{{ url_for('save_article', article_id=article.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="save-button {% if article.is_saved %}is-saved{% endif %}" title="{% if article.is_saved %}Remove from reading list{% else %}Save for later{% endif %}" aria-label="Save story">{% if article.is_saved %}♥{% else %}♡{% endif %}</button></form></div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state"><div>✳</div>
+        {% if search or subject or paper or topic or saved_only %}<h3>No matching stories</h3><p>Try a broader syllabus filter or clear your search.</p><a href="{{ url_for('index') }}" class="read-link">Show all stories →</a>
+        {% else %}<h3>Your syllabus briefing is ready</h3><p>Fetch available newspaper stories. We’ll match headlines and feed summaries to syllabus topics.</p><form method="post" action="{{ url_for('refresh') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="refresh-button" type="submit"><span>↻</span> Fetch latest stories</button></form>{% endif %}
+      </div>
+    {% endif %}
   </div>
-  <aside class="sidebar"><div class="sidebar-card editorial"><span class="eyebrow">A NOTE FOR ASPIRANTS</span><h3>Read beyond<br>the headline.</h3><p>Every story is a starting point. Ask what changed, who it affects, and how it connects to your syllabus.</p><a href="{{ url_for('about') }}" class="side-link">How to use this brief <span>↗</span></a><div class="side-decoration">✳</div></div><div class="sidebar-card quick-links"><span class="eyebrow">YOUR DESK</span><a href="{{ url_for('index', saved=1) }}">♡ <span>Saved stories</span><span>→</span></a><a href="{{ url_for('about') }}">↗ <span>About this project</span><span>→</span></a></div><div class="source-note"><span>ⓘ</span><p>Stories link back to their original publishers. Summaries are automated study notes—always read the source for full context.</p></div></aside>
+  <aside class="sidebar"><div class="sidebar-card editorial"><span class="eyebrow">A NOTE FOR ASPIRANTS</span><h3>Read beyond<br>the headline.</h3><p>Topic matches are suggested from words in the headline and publisher’s feed summary. Check each match against your syllabus and the full source.</p><a href="{{ url_for('about') }}" class="side-link">How to use this brief <span>↗</span></a><div class="side-decoration">✳</div></div><div class="sidebar-card quick-links"><span class="eyebrow">YOUR DESK</span><a href="{{ url_for('index', saved=1) }}">♡ <span>Saved stories</span><span>→</span></a><a href="{{ url_for('about') }}">↗ <span>About this project</span><span>→</span></a></div><div class="source-note"><span>ⓘ</span><p>Stories link to their original publishers. Summaries and syllabus tags are automated study aids, not official UPSC classifications.</p></div></aside>
 </section>
 {% endblock %}

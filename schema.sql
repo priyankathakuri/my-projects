@@ -7,8 +7,7 @@ CREATE TABLE IF NOT EXISTS articles (
     published TEXT,
     description TEXT,
     summary TEXT NOT NULL,
-    category TEXT NOT NULL DEFAULT 'General',
-    saved INTEGER NOT NULL DEFAULT 0
+    category TEXT NOT NULL DEFAULT 'General'
 );
 
 CREATE TABLE IF NOT EXISTS users (

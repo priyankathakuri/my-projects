@@ -1,18 +1,30 @@
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+import hmac
 import re
+from pathlib import Path
+import secrets
 import sqlite3
 import os
 import urllib.request
 import xml.etree.ElementTree as ET
+from urllib.parse import urlsplit
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+from syllabus import PAPER_ORDER, SYLLABUS, match_syllabus
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32)
-DATABASE = "current_affairs.db"
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER_EXTERNAL_HOSTNAME")),
+)
+DATABASE = os.environ.get(
+    "DATABASE_PATH", str(Path(__file__).resolve().parent / "current_affairs.db")
+)
 
 FEEDS = {
     "The Hindu": "https://www.thehindu.com/news/national/feeder/default.rss",
@@ -20,17 +32,101 @@ FEEDS = {
 }
 
 CATEGORY_KEYWORDS = {
-    "Polity": ("parliament", "court", "election", "government", "constitution", "bill", "minister", "policy"),
-    "Economy": ("economy", "bank", "inflation", "gdp", "trade", "tax", "budget", "rupee", "market"),
-    "Environment": ("climate", "forest", "wildlife", "environment", "pollution", "energy", "rainfall", "tiger"),
-    "Science & Tech": ("science", "technology", "space", "research", "ai", "digital", "satellite", "isro"),
-    "International": ("india", "world", "international", "border", "foreign", "summit", "china", "pakistan"),
+    "Polity": ("parliament", "court", "election", "government", "constitution", "bill", "minister", "policy", "governance"),
+    "Economy": ("economy", "economic", "bank", "banking", "inflation", "gdp", "trade", "tax", "budget", "rupee", "market", "finance"),
+    "Environment": ("climate", "forest", "wildlife", "environment", "pollution", "energy", "rainfall", "tiger", "biodiversity", "emissions"),
+    "Science & Tech": ("science", "technology", "tech", "space", "research", "ai", "digital", "satellite", "isro", "cyber"),
+    "International": ("international", "border", "foreign", "summit", "china", "pakistan", "diplomacy", "bilateral", "treaty"),
+}
+
+UPSC_STUDY_GUIDES = {
+    "Polity": {
+        "paper": "GS Paper II · Polity and Governance",
+        "focus": "Identify the constitutional provision or institution involved, the stakeholders affected, and the accountability or implementation question.",
+        "question": "Examine the governance implications of this issue. Suggest measures to improve accountability and implementation.",
+    },
+    "Economy": {
+        "paper": "GS Paper III · Indian Economy",
+        "focus": "Consider the effects on households, workers, businesses and public finances. Note both short-term effects and long-term trade-offs.",
+        "question": "Discuss the economic effects of this issue and suggest policy measures that balance growth with inclusion.",
+    },
+    "Environment": {
+        "paper": "GS Paper III · Environment and Ecology",
+        "focus": "Connect the issue to biodiversity, climate resilience, livelihoods and the balance between conservation and development.",
+        "question": "Examine the environmental and livelihood dimensions of this issue. What measures could support sustainable outcomes?",
+    },
+    "Science & Tech": {
+        "paper": "GS Paper III · Science and Technology",
+        "focus": "Separate the scientific development from its applications. Consider access, safety, ethics, regulation and possible unintended effects.",
+        "question": "Discuss the opportunities and concerns associated with this development, and suggest an appropriate policy approach.",
+    },
+    "International": {
+        "paper": "GS Paper II · International Relations",
+        "focus": "Map India’s interests, the other parties involved, regional implications and the diplomatic options available.",
+        "question": "Analyse the implications of this issue for India’s interests and suggest a way forward.",
+    },
+    "History": {
+        "paper": "GS Paper I · Indian and World History",
+        "focus": "Place the event in its historical context. Consider causes, major actors, social change and the longer-term effects visible today.",
+        "question": "Explain the historical background of this issue and assess its continuing significance.",
+    },
+    "Indian Culture": {
+        "paper": "GS Paper I · Indian Heritage and Culture",
+        "focus": "Consider the tradition’s historical setting, regional diversity, continuity and the ways it is preserved or adapted today.",
+        "question": "Discuss the cultural significance of this issue and the need to preserve the heritage involved.",
+    },
+    "Geography": {
+        "paper": "GS Paper I · Geography",
+        "focus": "Locate the places involved and connect the story to physical processes, people, resources and regional differences.",
+        "question": "Analyse the geographical factors behind this issue and their effects on people and development.",
+    },
+    "Polity and Governance": {
+        "paper": "GS Paper II · Polity and Governance",
+        "focus": "Identify the constitutional provision or institution involved, the stakeholders affected, and the accountability or implementation question.",
+        "question": "Examine the governance implications of this issue. Suggest measures to improve accountability and implementation.",
+    },
+    "Economy and Agriculture": {
+        "paper": "GS Paper III · Economy and Agriculture",
+        "focus": "Consider effects on households, workers, farmers, businesses and public finances. Note short-term effects and long-term trade-offs.",
+        "question": "Discuss the economic and livelihood effects of this issue and suggest inclusive policy measures.",
+    },
+    "Science and Technology": {
+        "paper": "GS Paper III · Science and Technology",
+        "focus": "Separate the scientific development from its applications. Consider access, safety, ethics, regulation and unintended effects.",
+        "question": "Discuss the opportunities and concerns associated with this development and suggest an appropriate policy approach.",
+    },
+    "Environment and Ecology": {
+        "paper": "GS Paper III · Environment and Ecology",
+        "focus": "Connect the issue to ecosystems, biodiversity, climate resilience, livelihoods and the balance between conservation and development.",
+        "question": "Examine the environmental and livelihood dimensions of this issue. What measures could support sustainable outcomes?",
+    },
+    "International Relations": {
+        "paper": "GS Paper II · International Relations",
+        "focus": "Map India’s interests, the other parties involved, regional implications and the diplomatic options available.",
+        "question": "Analyse the implications of this issue for India’s interests and suggest a way forward.",
+    },
+    "Internal Security and Disaster Management": {
+        "paper": "GS Paper III · Internal Security and Disaster Management",
+        "focus": "Identify the risks, vulnerable groups and institutional responsibilities. Consider preparedness, coordination, prevention and recovery.",
+        "question": "Assess the challenges raised by this issue and suggest coordinated measures to reduce risk and improve resilience.",
+    },
+    "Ethics, Integrity and Aptitude": {
+        "paper": "GS Paper IV · Ethics, Integrity and Aptitude",
+        "focus": "Identify the values, stakeholders and competing duties involved. Consider transparency, impartiality, empathy and public interest.",
+        "question": "Identify the ethical issues in this situation and justify a course of action in the public interest.",
+    },
+    "General": {
+        "paper": "Connect to the relevant GS paper",
+        "focus": "Identify the issue, the people and institutions affected, and the available policy choices. Support your notes with the original report.",
+        "question": "Explain the significance of this issue and suggest practical measures to address it.",
+    },
 }
 
 
 def connect_db():
     connection = sqlite3.connect(DATABASE)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
@@ -44,8 +140,7 @@ def init_db():
             published TEXT,
             description TEXT,
             summary TEXT NOT NULL,
-            category TEXT NOT NULL DEFAULT 'General',
-            saved INTEGER NOT NULL DEFAULT 0
+            category TEXT NOT NULL DEFAULT 'General'
         )""")
         db.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,25 +168,15 @@ def init_db():
         )
 
 
-def add_demo_articles(db):
-    """A small starter set keeps the site useful before the first feed refresh."""
-    samples = [
-        ("India's monsoon outlook and the rural economy", "UPSC Daily Desk", "https://example.com/monsoon-rural-economy", "Today", "Seasonal rainfall can affect farm output, rural demand and food prices. The outlook is useful context for questions on agriculture and the economy.", "Economy"),
-        ("New conservation steps put biodiversity in focus", "UPSC Daily Desk", "https://example.com/biodiversity-conservation", "Today", "Conservation policy connects habitat protection with local livelihoods. Consider the role of communities, protected areas and coordination between levels of government.", "Environment"),
-        ("Parliamentary committees: why their scrutiny matters", "UPSC Daily Desk", "https://example.com/parliamentary-committees", "Yesterday", "Committee review gives members time to examine proposed laws and hear evidence. It is an important part of legislative accountability and informed debate.", "Polity"),
-        ("India's digital public infrastructure draws global interest", "UPSC Daily Desk", "https://example.com/digital-public-infrastructure", "Yesterday", "Digital public infrastructure can widen access to services, while raising questions about privacy, inclusion and data security. These are useful angles for balanced answers.", "Science & Tech"),
-    ]
-    db.executemany("INSERT OR IGNORE INTO articles (title, source, url, published, description, summary, category) VALUES (?, ?, ?, ?, ?, ?, ?)", samples)
-
-
 def clean_text(value):
-    return re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", value or ""))).strip()
+    decoded = unescape(value or "")
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", decoded)).strip()
 
 
 def category_for(text):
     content = text.lower()
     for category, words in CATEGORY_KEYWORDS.items():
-        if sum(1 for word in words if word in content) >= 1:
+        if any(re.search(rf"(?<!\w){re.escape(word)}(?!\w)", content) for word in words):
             return category
     return "General"
 
@@ -116,11 +201,14 @@ def summarize(title, description):
 def parse_date(value):
     try:
         date = parsedate_to_datetime(value)
-        if date.tzinfo is None:
-            date = date.replace(tzinfo=timezone.utc)
-        return date.isoformat()
     except (TypeError, ValueError, OverflowError):
-        return datetime.now(timezone.utc).isoformat()
+        try:
+            date = datetime.fromisoformat((value or "").replace("Z", "+00:00"))
+        except (TypeError, ValueError, OverflowError):
+            date = datetime.now(timezone.utc)
+    if date.tzinfo is None:
+        date = date.replace(tzinfo=timezone.utc)
+    return date.isoformat()
 
 
 def fetch_feed(source, feed_url):
@@ -144,19 +232,63 @@ def fetch_feed(source, feed_url):
         link = (link_node.text if link_node is not None else "") or ""
         if not link and link_node is not None:
             link = link_node.attrib.get("href", "")
+        if link_node is not None and link_node.attrib.get("rel") not in (None, "", "alternate"):
+            alternate = next(
+                (node for node in item.findall("{*}link") if node.attrib.get("rel") == "alternate"),
+                None,
+            )
+            if alternate is not None:
+                link = alternate.attrib.get("href", link)
         desc_node = next((node for node in (field("description"), field("summary"), field("content")) if node is not None), None)
         pub_node = next((node for node in (field("pubDate"), field("published"), field("updated")) if node is not None), None)
-        title = clean_text(title_node.text)
-        description = clean_text(desc_node.text if desc_node is not None else "")
-        if link.startswith("http"):
+        title = clean_text(" ".join(title_node.itertext()))
+        description = clean_text(" ".join(desc_node.itertext()) if desc_node is not None else "")
+        parsed_link = urlsplit(link)
+        if parsed_link.scheme in ("http", "https") and parsed_link.netloc:
             collected.append((title, source, link, parse_date(pub_node.text if pub_node is not None else ""), description, summarize(title, description), category_for(title + " " + description)))
     return collected
+
+
+@app.before_request
+def protect_post_forms():
+    if request.method == "POST":
+        expected = session.get("_csrf_token", "")
+        provided = request.form.get("_csrf_token", "")
+        if not expected or not provided or not hmac.compare_digest(expected, provided):
+            abort(400)
+
+
+@app.context_processor
+def inject_csrf_token():
+    def csrf_token():
+        if "_csrf_token" not in session:
+            session["_csrf_token"] = secrets.token_urlsafe(32)
+        return session["_csrf_token"]
+
+    return {"csrf_token": csrf_token}
 
 
 @app.route("/")
 def index():
     search = request.args.get("q", "").strip()
-    category = request.args.get("category", "").strip()
+    subject = request.args.get("subject", request.args.get("category", "")).strip()
+    legacy_subjects = {
+        "Polity": "Polity and Governance",
+        "Economy": "Economy and Agriculture",
+        "Science & Tech": "Science and Technology",
+        "Environment": "Environment and Ecology",
+        "International": "International Relations",
+    }
+    subject = legacy_subjects.get(subject, subject)
+    if subject not in SYLLABUS:
+        subject = ""
+    paper = request.args.get("paper", "").strip()
+    if paper not in PAPER_ORDER:
+        paper = ""
+    topic = request.args.get("topic", "").strip()
+    known_topics = {topic_name for section in SYLLABUS.values() for topic_name in section["topics"]}
+    if topic not in known_topics:
+        topic = ""
     saved_only = request.args.get("saved") == "1"
     user_id = session.get("user_id")
     if saved_only and not user_id:
@@ -167,17 +299,41 @@ def index():
     if search:
         query += " AND (title LIKE ? OR description LIKE ? OR summary LIKE ?)"
         params.extend([f"%{search}%"] * 3)
-    if category:
-        query += " AND category = ?"
-        params.append(category)
     if saved_only:
         query += " AND EXISTS(SELECT 1 FROM saved_articles WHERE saved_articles.article_id = articles.id AND saved_articles.user_id = ?)"
         params.append(user_id)
     query += " ORDER BY published DESC, id DESC"
     with connect_db() as db:
-        articles = db.execute(query, params).fetchall()
+        rows = db.execute(query, params).fetchall()
         counts = db.execute("SELECT COUNT(*) AS total, COUNT(DISTINCT category) AS topics FROM articles").fetchone()
-    return render_template("index.html", articles=articles, search=search, category=category, saved_only=saved_only, counts=counts, categories=list(CATEGORY_KEYWORDS))
+    articles = []
+    for row in rows:
+        article = dict(row)
+        article["syllabus_matches"] = match_syllabus(article["title"], article["description"])
+        matches = article["syllabus_matches"]
+        if subject or paper or topic:
+            matching_tags = [
+                match for match in matches
+                if (not subject or match["subject"] == subject)
+                and (not paper or paper in match["papers"])
+                and (not topic or match["topic"] == topic)
+            ]
+            if not matching_tags:
+                continue
+        articles.append(article)
+    return render_template(
+        "index.html",
+        articles=articles,
+        search=search,
+        subject=subject,
+        paper=paper,
+        topic=topic,
+        saved_only=saved_only,
+        counts=counts,
+        syllabus=SYLLABUS,
+        syllabus_subjects=list(SYLLABUS),
+        papers=PAPER_ORDER,
+    )
 
 
 @app.post("/refresh")
@@ -208,14 +364,16 @@ def save_article(article_id):
     user_id = session.get("user_id")
     if not user_id:
         flash("Log in to save stories to your reading list.", "error")
-        return redirect(url_for("login", next=request.referrer or url_for("index")))
+        return redirect(url_for("login", next=safe_next_url(request.referrer)))
     with connect_db() as db:
+        if not db.execute("SELECT 1 FROM articles WHERE id = ?", (article_id,)).fetchone():
+            return render_template("404.html"), 404
         exists = db.execute("SELECT 1 FROM saved_articles WHERE user_id = ? AND article_id = ?", (user_id, article_id)).fetchone()
         if exists:
             db.execute("DELETE FROM saved_articles WHERE user_id = ? AND article_id = ?", (user_id, article_id))
         else:
             db.execute("INSERT OR IGNORE INTO saved_articles (user_id, article_id) VALUES (?, ?)", (user_id, article_id))
-    return redirect(request.referrer or url_for("index"))
+    return redirect(safe_next_url(request.referrer))
 
 
 @app.route("/article/<int:article_id>")
@@ -224,7 +382,14 @@ def article_detail(article_id):
         article = db.execute("SELECT articles.*, EXISTS(SELECT 1 FROM saved_articles WHERE saved_articles.article_id = articles.id AND saved_articles.user_id = ?) AS is_saved FROM articles WHERE id = ?", (session.get("user_id") or -1, article_id)).fetchone()
     if article is None:
         return render_template("404.html"), 404
-    return render_template("article.html", article=article)
+    syllabus_matches = match_syllabus(article["title"], article["description"])
+    if syllabus_matches:
+        guide_key = syllabus_matches[0]["subject"]
+        study_guide = dict(UPSC_STUDY_GUIDES.get(guide_key, UPSC_STUDY_GUIDES["General"]))
+        study_guide["paper"] = syllabus_matches[0]["paper"]
+    else:
+        study_guide = UPSC_STUDY_GUIDES.get(article["category"], UPSC_STUDY_GUIDES["General"])
+    return render_template("article.html", article=article, study_guide=study_guide, syllabus_matches=syllabus_matches)
 
 
 @app.route("/about")
@@ -233,8 +398,13 @@ def about():
 
 
 def safe_next_url(value):
-    if value and value.startswith("/") and not value.startswith("//"):
+    if not value:
+        return url_for("index")
+    parsed = urlsplit(value)
+    if not parsed.netloc and value.startswith("/") and not value.startswith("//"):
         return value
+    if parsed.netloc == request.host and parsed.scheme in ("http", "https"):
+        return parsed.path + (("?" + parsed.query) if parsed.query else "")
     return url_for("index")
 
 
@@ -246,15 +416,17 @@ def signup():
         name = request.form.get("name", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
-        if not name or not email or len(password) < 8:
+        valid_email = re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)
+        if not name or len(name) > 80 or not valid_email or len(email) > 254 or not 8 <= len(password) <= 128:
             flash("Add your name and email, and choose a password with at least 8 characters.", "error")
         else:
             try:
                 with connect_db() as db:
                     cursor = db.execute("INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)", (name, email, generate_password_hash(password)))
+                    session.clear()
                     session["user_id"] = cursor.lastrowid
                     session["user_name"] = name
-                flash("Your account is ready. Welcome to The Daily Brief!", "success")
+                flash("Your account is ready. Welcome to The UPSC Newsroom!", "success")
                 return redirect(url_for("index"))
             except sqlite3.IntegrityError:
                 flash("An account with that email already exists. Please log in.", "error")
@@ -271,7 +443,7 @@ def login():
         password = request.form.get("password", "")
         with connect_db() as db:
             user = db.execute("SELECT id, name, password_hash FROM users WHERE email = ?", (email,)).fetchone()
-        if user and check_password_hash(user["password_hash"], password):
+        if user and len(password) <= 128 and check_password_hash(user["password_hash"], password):
             session.clear()
             session["user_id"] = user["id"]
             session["user_name"] = user["name"]
