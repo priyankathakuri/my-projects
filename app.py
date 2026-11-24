@@ -573,9 +573,33 @@ def article_detail(article_id):
         guide_key = syllabus_matches[0]["subject"]
         study_guide = dict(UPSC_STUDY_GUIDES.get(guide_key, UPSC_STUDY_GUIDES["General"]))
         study_guide["paper"] = syllabus_matches[0]["paper"]
+        why_matters = (
+            f"Use this story to revise {syllabus_matches[0]['topic']} in "
+            f"{syllabus_matches[0]['paper']}. Connect the issue to {study_guide['focus']} "
+            "and use the linked report to check facts and context."
+        )
+        syllabus_revision = f"{syllabus_matches[0]['paper']} · {syllabus_matches[0]['subject']} · {syllabus_matches[0]['topic']}"
     else:
         study_guide = UPSC_STUDY_GUIDES.get(article["category"], UPSC_STUDY_GUIDES["General"])
-    return render_template("article.html", article=article, study_guide=study_guide, syllabus_matches=syllabus_matches)
+        why_matters = (
+            f"No specific micro-topic matched this story automatically. If it is relevant to your "
+            f"preparation, use it to review {study_guide['paper']} and consider {study_guide['focus']} "
+            "after checking the linked report."
+        )
+        syllabus_revision = f"Suggested starting point: {study_guide['paper']}"
+    revision_points = [
+        {"label": "Issue", "text": article["title"]},
+        {"label": "Key detail", "text": article["summary"]},
+        {"label": "Syllabus link", "text": syllabus_revision},
+    ]
+    return render_template(
+        "article.html",
+        article=article,
+        study_guide=study_guide,
+        syllabus_matches=syllabus_matches,
+        why_matters=why_matters,
+        revision_points=revision_points,
+    )
 
 
 @app.route("/about")
