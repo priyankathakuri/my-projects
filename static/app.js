@@ -15,3 +15,7 @@ document.querySelectorAll('.refresh-button[type="submit"]').forEach((button) => 
     button.innerHTML = '<span>↻</span> Checking feeds…';
   });
 });
+
+if (document.querySelector('[data-auto-refresh-pending]')) {
+  window.setTimeout(() => window.location.reload(), 30000);
+}

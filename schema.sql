@@ -23,3 +23,8 @@ CREATE TABLE IF NOT EXISTS saved_articles (
     article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, article_id)
 );
+
+CREATE TABLE IF NOT EXISTS app_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);

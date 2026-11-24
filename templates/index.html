@@ -54,6 +54,8 @@
       {% if subject or paper or topic or saved_only %}<a class="clear-filter" href="{{ url_for('index', q=search, saved=1 if saved_only else None) }}">Clear filters</a>{% endif %}
     </form>
 
+    {% if auto_refresh_pending %}<p class="auto-refresh-note" data-auto-refresh-pending>↻ Checking newspaper feeds for the latest stories. This page will refresh in about 30 seconds.</p>{% endif %}
+
     {% if articles %}
       <div class="story-list">
         {% for article in articles %}
@@ -69,6 +71,7 @@
     {% else %}
       <div class="empty-state"><div>✳</div>
         {% if search or subject or paper or topic or saved_only %}<h3>No matching stories</h3><p>Try a broader syllabus filter or clear your search.</p><a href="{{ url_for('index') }}" class="read-link">Show all stories →</a>
+        {% elif auto_refresh_pending %}<h3>Preparing today's briefing</h3><p>The newspaper feeds are being checked automatically. This page will refresh when the update is ready.</p>
         {% else %}<h3>Your syllabus briefing is ready</h3><p>Fetch available newspaper stories. We’ll match headlines and feed summaries to syllabus topics.</p><form method="post" action="{{ url_for('refresh') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="refresh-button" type="submit"><span>↻</span> Fetch latest stories</button></form>{% endif %}
       </div>
     {% endif %}

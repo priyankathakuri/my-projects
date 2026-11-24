@@ -7,6 +7,7 @@ from pathlib import Path
 import secrets
 import sqlite3
 import os
+import threading
 import urllib.request
 import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
@@ -30,6 +31,8 @@ FEEDS = {
     "The Hindu": "https://www.thehindu.com/news/national/feeder/default.rss",
     "Indian Express": "https://indianexpress.com/section/india/feed/",
 }
+AUTO_REFRESH_INTERVAL = 24 * 60 * 60
+_news_refresh_lock = threading.Lock()
 
 CATEGORY_KEYWORDS = {
     "Polity": ("parliament", "court", "election", "government", "constitution", "bill", "minister", "policy", "governance"),
@@ -154,6 +157,10 @@ def init_db():
             article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
             PRIMARY KEY (user_id, article_id)
         )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )""")
         db.execute(
             """
             DELETE FROM saved_articles
@@ -249,6 +256,83 @@ def fetch_feed(source, feed_url):
     return collected
 
 
+def mark_news_refresh_attempt():
+    refreshed_at = datetime.now(timezone.utc).isoformat()
+    with connect_db() as db:
+        db.execute(
+            "INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)",
+            ("news_last_attempt_at", refreshed_at),
+        )
+
+
+def fetch_and_store_news():
+    new_count = 0
+    errors = []
+    with connect_db() as db:
+        for source, feed_url in FEEDS.items():
+            try:
+                entries = fetch_feed(source, feed_url)
+                before = db.total_changes
+                db.executemany(
+                    "INSERT OR IGNORE INTO articles "
+                    "(title, source, url, published, description, summary, category) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    entries,
+                )
+                new_count += db.total_changes - before
+            except Exception as error:
+                errors.append(source)
+                app.logger.warning("Could not refresh %s: %s", source, error)
+    return new_count, errors
+
+
+def _run_background_news_refresh():
+    try:
+        new_count, errors = fetch_and_store_news()
+        if errors:
+            app.logger.warning("Automatic news refresh had feed errors: %s", ", ".join(errors))
+        else:
+            app.logger.info("Automatic news refresh finished; added %s stories.", new_count)
+    except Exception:
+        app.logger.exception("Automatic news refresh failed")
+    finally:
+        _news_refresh_lock.release()
+
+
+def start_daily_news_refresh_if_due():
+    if not _news_refresh_lock.acquire(blocking=False):
+        return True
+
+    keep_lock_for_worker = False
+    try:
+        with connect_db() as db:
+            row = db.execute(
+                "SELECT value FROM app_state WHERE key = ?",
+                ("news_last_attempt_at",),
+            ).fetchone()
+        if row:
+            try:
+                last_attempt = datetime.fromisoformat(row["value"])
+                if last_attempt.tzinfo is None:
+                    last_attempt = last_attempt.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - last_attempt).total_seconds() < AUTO_REFRESH_INTERVAL:
+                    return False
+            except (TypeError, ValueError):
+                app.logger.warning("Ignoring an invalid automatic refresh timestamp")
+
+        mark_news_refresh_attempt()
+        worker = threading.Thread(target=_run_background_news_refresh, daemon=True)
+        worker.start()
+        keep_lock_for_worker = True
+        return True
+    except Exception:
+        app.logger.exception("Could not schedule automatic news refresh")
+        return False
+    finally:
+        if not keep_lock_for_worker:
+            _news_refresh_lock.release()
+
+
 @app.before_request
 def protect_post_forms():
     if request.method == "POST":
@@ -294,6 +378,7 @@ def index():
     if saved_only and not user_id:
         flash("Log in to see your personal reading list.", "error")
         return redirect(url_for("login", next=url_for("index", saved=1)))
+    auto_refresh_pending = False if saved_only else start_daily_news_refresh_if_due()
     query = "SELECT articles.*, EXISTS(SELECT 1 FROM saved_articles WHERE saved_articles.article_id = articles.id AND saved_articles.user_id = ?) AS is_saved FROM articles WHERE 1=1"
     params = [user_id or -1]
     if search:
@@ -333,23 +418,20 @@ def index():
         syllabus=SYLLABUS,
         syllabus_subjects=list(SYLLABUS),
         papers=PAPER_ORDER,
+        auto_refresh_pending=auto_refresh_pending,
     )
 
 
 @app.post("/refresh")
 def refresh():
-    new_count = 0
-    errors = []
-    with connect_db() as db:
-        for source, feed_url in FEEDS.items():
-            try:
-                entries = fetch_feed(source, feed_url)
-                before = db.total_changes
-                db.executemany("INSERT OR IGNORE INTO articles (title, source, url, published, description, summary, category) VALUES (?, ?, ?, ?, ?, ?, ?)", entries)
-                new_count += db.total_changes - before
-            except Exception as error:
-                errors.append(source)
-                app.logger.warning("Could not refresh %s: %s", source, error)
+    if not _news_refresh_lock.acquire(blocking=False):
+        flash("A news update is already running. Reload this page in a few seconds.", "success")
+        return redirect(url_for("index"))
+    try:
+        mark_news_refresh_attempt()
+        new_count, errors = fetch_and_store_news()
+    finally:
+        _news_refresh_lock.release()
     if new_count:
         flash(f"Added {new_count} new article{'s' if new_count != 1 else ''} to your briefing.", "success")
     elif errors:
