@@ -574,17 +574,17 @@ def article_detail(article_id):
         study_guide = dict(UPSC_STUDY_GUIDES.get(guide_key, UPSC_STUDY_GUIDES["General"]))
         study_guide["paper"] = syllabus_matches[0]["paper"]
         why_matters = (
-            f"Use this story to revise {syllabus_matches[0]['topic']} in "
-            f"{syllabus_matches[0]['paper']}. Connect the issue to {study_guide['focus']} "
-            "and use the linked report to check facts and context."
+            f"This story is a prompt to revise {syllabus_matches[0]['topic']} in "
+            f"{syllabus_matches[0]['paper']}. Use the headline alongside the static syllabus, "
+            "then check the linked report for facts and context."
         )
         syllabus_revision = f"{syllabus_matches[0]['paper']} · {syllabus_matches[0]['subject']} · {syllabus_matches[0]['topic']}"
     else:
         study_guide = UPSC_STUDY_GUIDES.get(article["category"], UPSC_STUDY_GUIDES["General"])
         why_matters = (
-            f"No specific micro-topic matched this story automatically. If it is relevant to your "
-            f"preparation, use it to review {study_guide['paper']} and consider {study_guide['focus']} "
-            "after checking the linked report."
+            "This headline did not match a specific syllabus micro-topic automatically. "
+            f"If it is relevant to your preparation, review {study_guide['paper']} and check the "
+            "original report before connecting it to the syllabus."
         )
         syllabus_revision = f"Suggested starting point: {study_guide['paper']}"
     revision_points = [
