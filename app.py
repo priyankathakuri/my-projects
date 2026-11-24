@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 import hmac
@@ -271,6 +271,21 @@ def mark_news_refresh_attempt():
         )
 
 
+def mark_news_refresh_result(status, new_count=0, detail=""):
+    """Keep a small, truthful summary of the latest refresh for the homepage."""
+    refreshed_at = datetime.now(timezone.utc).isoformat()
+    with connect_db() as db:
+        db.executemany(
+            "INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)",
+            [
+                ("news_last_result_at", refreshed_at),
+                ("news_last_result_status", status),
+                ("news_last_result_count", str(new_count)),
+                ("news_last_result_detail", detail[:240]),
+            ],
+        )
+
+
 def fetch_and_store_news():
     new_count = 0
     errors = []
@@ -297,10 +312,13 @@ def _run_background_news_refresh():
         new_count, errors = fetch_and_store_news()
         if errors:
             app.logger.warning("Automatic news refresh had feed errors: %s", ", ".join(errors))
+            mark_news_refresh_result("partial", new_count, ", ".join(errors))
         else:
             app.logger.info("Automatic news refresh finished; added %s stories.", new_count)
+            mark_news_refresh_result("success", new_count)
     except Exception:
         app.logger.exception("Automatic news refresh failed")
+        mark_news_refresh_result("error", detail="The newspaper feeds could not be refreshed.")
     finally:
         _news_refresh_lock.release()
 
@@ -397,6 +415,18 @@ def index():
     with connect_db() as db:
         rows = db.execute(query, params).fetchall()
         counts = db.execute("SELECT COUNT(*) AS total, COUNT(DISTINCT category) AS topics FROM articles").fetchone()
+        state_rows = db.execute(
+            "SELECT key, value FROM app_state WHERE key LIKE 'news_last_result_%'"
+        ).fetchall()
+    refresh_state = {row["key"]: row["value"] for row in state_rows}
+    last_update = None
+    try:
+        updated_at = datetime.fromisoformat(refresh_state["news_last_result_at"])
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+        last_update = updated_at.astimezone(timezone(timedelta(hours=5, minutes=30)))
+    except (KeyError, TypeError, ValueError):
+        pass
     articles = []
     for row in rows:
         article = dict(row)
@@ -425,6 +455,10 @@ def index():
         syllabus_subjects=list(SYLLABUS),
         papers=PAPER_ORDER,
         auto_refresh_pending=auto_refresh_pending,
+        last_update=last_update,
+        refresh_status=refresh_state.get("news_last_result_status", "unknown"),
+        refresh_new_count=refresh_state.get("news_last_result_count", "0"),
+        refresh_detail=refresh_state.get("news_last_result_detail", ""),
     )
 
 
@@ -436,6 +470,11 @@ def refresh():
     try:
         mark_news_refresh_attempt()
         new_count, errors = fetch_and_store_news()
+        if errors:
+            status = "partial" if new_count else "error"
+            mark_news_refresh_result(status, new_count, ", ".join(errors))
+        else:
+            mark_news_refresh_result("success", new_count)
     finally:
         _news_refresh_lock.release()
     if new_count:
@@ -500,6 +539,8 @@ def ingest_scheduled_news():
             )
             inserted += cursor.rowcount
 
+    mark_news_refresh_attempt()
+    mark_news_refresh_result("success", inserted)
     app.logger.info("Scheduled publisher refresh stored %s new stories.", inserted)
     return {"inserted": inserted, "received": len(items)}, 200
 

@@ -20,6 +20,14 @@
 
 <section class="stats-row"><div><strong>{{ counts.total }}</strong><span>STORIES IN YOUR BRIEF</span></div><i></i><div><strong>{{ counts.topics }}</strong><span>TOPIC AREAS</span></div><i></i><div><strong>~5 MIN</strong><span>TO GET UP TO SPEED</span></div><span class="stats-note">Mapped to UPSC micro-topics</span></section>
 
+<section class="update-status update-status-{{ refresh_status }}" aria-live="polite">
+  <span class="update-status-dot" aria-hidden="true"></span>
+  <div class="update-status-copy">
+    <strong>{% if refresh_status == 'success' %}News update complete{% elif refresh_status == 'partial' %}News update partly complete{% elif refresh_status == 'error' %}Latest news update had a problem{% elif auto_refresh_pending %}Checking for the latest news{% else %}News update has not run yet{% endif %}</strong>
+    <span>{% if last_update %}Last checked {{ last_update.strftime('%d %b %Y, %I:%M %p') }} IST · {{ refresh_new_count }} new {% if refresh_new_count == '1' %}story{% else %}stories{% endif %}{% if refresh_detail %} · Could not check: {{ refresh_detail }}{% endif %}{% else %}The daily check is scheduled for 6:00 pm IST. You can also use “Refresh news” above.{% endif %}</span>
+  </div>
+</section>
+
 <section class="content-layout">
   <div class="feed-column">
     <div class="section-heading">
