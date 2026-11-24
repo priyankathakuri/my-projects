@@ -22,6 +22,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER_EXTERNAL_HOSTNAME")),
+    MAX_CONTENT_LENGTH=256 * 1024,
 )
 DATABASE = os.environ.get(
     "DATABASE_PATH", str(Path(__file__).resolve().parent / "current_affairs.db")
@@ -33,6 +34,11 @@ FEEDS = {
 }
 AUTO_REFRESH_INTERVAL = 24 * 60 * 60
 _news_refresh_lock = threading.Lock()
+PUBLISHER_HOSTS = {
+    "Vision IAS": ("visionias.in", "www.visionias.in"),
+    "Drishti IAS": ("www.drishtiias.com", "drishtiias.com"),
+    "Vajiram & Ravi": ("vajiramandravi.com", "www.vajiramandravi.com"),
+}
 
 CATEGORY_KEYWORDS = {
     "Polity": ("parliament", "court", "election", "government", "constitution", "bill", "minister", "policy", "governance"),
@@ -335,7 +341,7 @@ def start_daily_news_refresh_if_due():
 
 @app.before_request
 def protect_post_forms():
-    if request.method == "POST":
+    if request.method == "POST" and request.endpoint != "ingest_scheduled_news":
         expected = session.get("_csrf_token", "")
         provided = request.form.get("_csrf_token", "")
         if not expected or not provided or not hmac.compare_digest(expected, provided):
@@ -439,6 +445,63 @@ def refresh():
     else:
         flash("You're up to date. No new articles were found.", "success")
     return redirect(url_for("index"))
+
+
+@app.post("/internal/news-ingest")
+def ingest_scheduled_news():
+    """Accept public publisher metadata from the scheduled Render job."""
+    token = os.environ.get("NEWS_REFRESH_TOKEN")
+    supplied = request.headers.get("Authorization", "")
+    if not token or not hmac.compare_digest(supplied, f"Bearer {token}"):
+        abort(404)
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400)
+    items = payload.get("articles")
+    if not isinstance(items, list) or len(items) > 60:
+        abort(400)
+
+    inserted = 0
+    with connect_db() as db:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            source = item.get("source", "")
+            raw_title = item.get("title", "")
+            link = item.get("url", "")
+            if not isinstance(raw_title, str) or not isinstance(link, str):
+                continue
+            title = clean_text(raw_title)[:500]
+            parsed = urlsplit(link)
+            if (
+                not isinstance(source, str)
+                or source not in PUBLISHER_HOSTS
+                or not title
+                or parsed.scheme != "https"
+                or parsed.hostname not in PUBLISHER_HOSTS[source]
+            ):
+                continue
+            raw_description = item.get("description", "")
+            description = clean_text(raw_description if isinstance(raw_description, str) else "")[:1200]
+            published = item.get("published")
+            if published:
+                try:
+                    published = parse_date(published)
+                except Exception:
+                    published = None
+            summary = summarize(title, description)
+            cursor = db.execute(
+                "INSERT OR IGNORE INTO articles "
+                "(title, source, url, published, description, summary, category) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (title, source, link, published, description, summary,
+                 category_for(title + " " + description)),
+            )
+            inserted += cursor.rowcount
+
+    app.logger.info("Scheduled publisher refresh stored %s new stories.", inserted)
+    return {"inserted": inserted, "received": len(items)}, 200
 
 
 @app.post("/save/<int:article_id>")

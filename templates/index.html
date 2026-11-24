@@ -60,7 +60,7 @@
       <div class="story-list">
         {% for article in articles %}
           <article class="story-card">
-            <div class="story-meta"><span class="category-pill">{{ article.category }}</span><span>{{ article.source }}</span><span class="meta-dot">·</span><span>{{ article.published[:10] if article.published and article.published|length > 10 else article.published }}</span></div>
+            <div class="story-meta"><span class="category-pill">{{ article.category }}</span><span>{{ article.source }}</span>{% if article.published %}<span class="meta-dot">·</span><span>{{ article.published[:10] if article.published|length > 10 else article.published }}</span>{% endif %}</div>
             <a class="story-title" href="{{ url_for('article_detail', article_id=article.id) }}">{{ article.title }}</a>
             <p class="story-summary">{{ article.summary }}</p>
             {% if article.syllabus_matches %}<div class="syllabus-tags" aria-label="Matched syllabus topics">{% for match in article.syllabus_matches[:3] %}<span class="syllabus-tag">{{ match.paper }} · {{ match.topic }}</span>{% endfor %}</div>{% else %}<div class="syllabus-tags"><span class="syllabus-tag unmatched">No specific micro-topic matched</span></div>{% endif %}
@@ -76,6 +76,6 @@
       </div>
     {% endif %}
   </div>
-  <aside class="sidebar"><div class="sidebar-card editorial"><span class="eyebrow">A NOTE FOR ASPIRANTS</span><h3>Read beyond<br>the headline.</h3><p>Topic matches are suggested from words in the headline and publisher’s feed summary. Check each match against your syllabus and the full source.</p><a href="{{ url_for('about') }}" class="side-link">How to use this brief <span>↗</span></a><div class="side-decoration">✳</div></div><div class="sidebar-card quick-links"><span class="eyebrow">YOUR DESK</span><a href="{{ url_for('index', saved=1) }}">♡ <span>Saved stories</span><span>→</span></a><a href="{{ url_for('about') }}">↗ <span>About this project</span><span>→</span></a></div><div class="source-note"><span>ⓘ</span><p>Stories link to their original publishers. Summaries and syllabus tags are automated study aids, not official UPSC classifications.</p></div></aside>
+  <aside class="sidebar"><div class="sidebar-card editorial"><span class="eyebrow">A NOTE FOR ASPIRANTS</span><h3>Read beyond<br>the headline.</h3><p>Topic matches are suggested from headlines and any short publisher description available. Check each match against your syllabus and the full source.</p><a href="{{ url_for('about') }}" class="side-link">How to use this brief <span>↗</span></a><div class="side-decoration">✳</div></div><div class="sidebar-card quick-links"><span class="eyebrow">YOUR DESK</span><a href="{{ url_for('index', saved=1) }}">♡ <span>Saved stories</span><span>→</span></a><a href="{{ url_for('about') }}">↗ <span>About this project</span><span>→</span></a></div><div class="source-note"><span>ⓘ</span><p>Stories link to their original publishers. Summaries and syllabus tags are automated study aids, not official UPSC classifications.</p></div></aside>
 </section>
 {% endblock %}

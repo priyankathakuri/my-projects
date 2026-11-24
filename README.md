@@ -18,7 +18,24 @@ A small full-stack newspaper-style site for UPSC aspirants. It uses Python and F
 
 ## Daily news refresh
 
-The home page checks when the feeds were last refreshed. If 24 hours have passed, it starts a background refresh when someone visits and reloads the page after the check. The **Refresh news** button is still available for an immediate manual update. This is a first-visit daily refresh, not a fixed-time schedule: if nobody opens the site, the refresh waits until the next visit. A fixed-time Render Cron Job needs a separate service (currently at least $1/month) and cannot share this app's local SQLite disk, so it would also require a shared database.
+The GitHub Actions workflow in `.github/workflows/daily-news.yml` is scheduled for 6:00 pm India time (`30 12 * * *`, since GitHub schedules use UTC). It fetches public current-affairs metadata from Vision IAS, Drishti IAS, and Vajiram & Ravi, then sends headlines, dates, short public descriptions, and source links to the website. It does not copy complete publisher articles or bypass gated material.
+
+GitHub Actions standard runners are free for public repositories. GitHub can delay a scheduled run when Actions is busy, so 6:00 pm is the target time rather than an exact-second guarantee. Scheduled workflows run only from the repository's default branch; GitHub may disable a public repository's schedule after 60 days without repository activity.
+
+### Enable the scheduled update
+
+1. On your computer, open PowerShell and make a private token:
+
+   ```powershell
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
+   Keep the token private. Do not put it in a project file or send it in a chat.
+2. In the Render Dashboard, open the `daily-brief-upsc` web service, select **Environment**, add `NEWS_REFRESH_TOKEN`, paste the token, and save/deploy.
+3. On GitHub, open this repository and go to **Settings → Secrets and variables → Actions → New repository secret**. Name it `NEWS_REFRESH_TOKEN` and paste the same token.
+4. Add `.github/workflows/daily-news.yml` and `scripts/daily_news_fetch.py` to the repository's default branch (`main`). The schedule will then run daily. In GitHub, open **Actions → Daily UPSC publisher update → Run workflow** to trigger a manual run and see its logs.
+
+For local development, **Refresh news** still fetches The Hindu and The Indian Express. The GitHub schedule runs in the cloud even when your computer is off. The Render free web service still uses temporary SQLite storage, so accounts and saved stories can be lost when the service is rebuilt or restarted.
 
 ## Publish a shareable link
 
@@ -27,7 +44,7 @@ For a public demo, push this project to a GitHub repository and create a Bluepri
 ## What it does
 
 - Fetches RSS headlines and descriptions from two newspaper feeds.
-- Starts an automatic background feed refresh when the site is visited after 24 hours.
+- Includes a free GitHub Actions schedule for publisher metadata at 6:00 pm India time.
 - Saves stories in a local SQLite database (`current_affairs.db`).
 - Creates short extractive summaries from each feed description and assigns a broad topic using simple keywords.
 - Maps each headline and feed description to likely UPSC syllabus papers and micro-topics from the supplied 2026 guide; filter by subject, paper, or micro-topic.

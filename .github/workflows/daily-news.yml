@@ -1,0 +1,27 @@
+name: Daily UPSC publisher update
+
+on:
+  schedule:
+    # 12:30 UTC = 6:00 pm India Standard Time (UTC+5:30)
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-upsc-publisher-update
+  cancel-in-progress: false
+
+jobs:
+  fetch-current-affairs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PUBLIC_SITE_URL: https://daily-brief-upsc.onrender.com
+      NEWS_REFRESH_TOKEN: ${{ secrets.NEWS_REFRESH_TOKEN }}
+    steps:
+      - name: Check out the project
+        uses: actions/checkout@v4
+      - name: Fetch public current-affairs metadata
+        run: python scripts/daily_news_fetch.py
